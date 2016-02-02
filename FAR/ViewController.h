@@ -1,9 +1,9 @@
 //
 //  ViewController.h
-//  FAR
+//  sample_face_track
 //
-//  Created by MO TAO on 2/2/2016.
-//  Copyright © 2016 MO TAO. All rights reserved.
+//  Created by makun on 11/23/14.
+//  Copyright (c) 2015 SenseTime.com . All rights reserved.
 //
 
 #import <UIKit/UIKit.h>

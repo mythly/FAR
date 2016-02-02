@@ -13,6 +13,8 @@
 		CD7E56A11C60D95E00349541 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = CD7E569F1C60D95E00349541 /* Main.storyboard */; };
 		CD7E56A31C60D95E00349541 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CD7E56A21C60D95E00349541 /* Assets.xcassets */; };
 		CD7E56A61C60D95E00349541 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = CD7E56A41C60D95E00349541 /* LaunchScreen.storyboard */; };
+		CD7E56AF1C60DB3D00349541 /* far.c in Sources */ = {isa = PBXBuildFile; fileRef = CD7E56AD1C60DB3D00349541 /* far.c */; };
+		CD7E56B31C60E15600349541 /* CanvasView.m in Sources */ = {isa = PBXBuildFile; fileRef = CD7E56B21C60E15600349541 /* CanvasView.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +28,11 @@
 		CD7E56A21C60D95E00349541 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CD7E56A51C60D95E00349541 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		CD7E56A71C60D95E00349541 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		CD7E56AD1C60DB3D00349541 /* far.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = far.c; sourceTree = "<group>"; };
+		CD7E56AE1C60DB3D00349541 /* far.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = far.h; sourceTree = "<group>"; };
+		CD7E56B01C60DD1700349541 /* cv_common.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cv_common.h; sourceTree = "<group>"; };
+		CD7E56B11C60E15600349541 /* CanvasView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CanvasView.h; sourceTree = "<group>"; };
+		CD7E56B21C60E15600349541 /* CanvasView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CanvasView.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -58,6 +65,9 @@
 		CD7E56951C60D95E00349541 /* FAR */ = {
 			isa = PBXGroup;
 			children = (
+				CD7E56B11C60E15600349541 /* CanvasView.h */,
+				CD7E56B21C60E15600349541 /* CanvasView.m */,
+				CD7E56B01C60DD1700349541 /* cv_common.h */,
 				CD7E56991C60D95E00349541 /* AppDelegate.h */,
 				CD7E569A1C60D95E00349541 /* AppDelegate.m */,
 				CD7E569C1C60D95E00349541 /* ViewController.h */,
@@ -67,6 +77,8 @@
 				CD7E56A41C60D95E00349541 /* LaunchScreen.storyboard */,
 				CD7E56A71C60D95E00349541 /* Info.plist */,
 				CD7E56961C60D95E00349541 /* Supporting Files */,
+				CD7E56AD1C60DB3D00349541 /* far.c */,
+				CD7E56AE1C60DB3D00349541 /* far.h */,
 			);
 			path = FAR;
 			sourceTree = "<group>";
@@ -152,6 +164,8 @@
 				CD7E569E1C60D95E00349541 /* ViewController.m in Sources */,
 				CD7E569B1C60D95E00349541 /* AppDelegate.m in Sources */,
 				CD7E56981C60D95E00349541 /* main.m in Sources */,
+				CD7E56AF1C60DB3D00349541 /* far.c in Sources */,
+				CD7E56B31C60E15600349541 /* CanvasView.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -300,6 +314,7 @@
 				CD7E56AC1C60D95E00349541 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
