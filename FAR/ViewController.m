@@ -8,14 +8,13 @@
 
 #import "ViewController.h"
 #import <AVFoundation/AVFoundation.h>
-#import "far.h"
+#import <ImageIO/ImageIO.h>
+#import "cv_face.h"
 #import "CanvasView.h"
 
 @interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate>
 
 @property (nonatomic , strong) AVCaptureVideoPreviewLayer *captureVideoPreviewLayer ;
-
-@property (nonatomic) cv_handle_t hTracker;
 
 @property (nonatomic , strong) CanvasView *viewCanvas ;
 
@@ -28,8 +27,6 @@
     [super viewDidLoad];
     // Do any additional setup after loading the view, typically from a nib.
     self.view.backgroundColor = [UIColor blackColor] ;
-    
-    self.hTracker = cv_face_create_tracker();
 }
 
 - (void)didReceiveMemoryWarning {
@@ -39,7 +36,7 @@
 
 - (void)dealloc
 {
-    cv_face_destroy_tracker(self.hTracker);
+    cv_release();
 }
 
 - (void)viewDidAppear:(BOOL)animated
@@ -96,70 +93,60 @@
     
     [session startRunning];
 }
+
 -(void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
     
     CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
     CVPixelBufferLockBaseAddress(pixelBuffer, 0);
-    uint8_t *baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer);
-    
-    cv_face_t *pFaceRectID = NULL ;
-    int iCount = 0;
+    uint8_t* baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer);
     
     int iWidth  = (int)CVPixelBufferGetWidth(pixelBuffer);
     int iHeight = (int)CVPixelBufferGetHeight(pixelBuffer);
+    cv_rect_t rect;
     
-    cv_result_t iRet = CV_OK;
-    
-    iRet = cv_face_track(self.hTracker, baseAddress, CV_PIX_FMT_BGRA8888, iWidth, iHeight, iWidth * 4, CV_FACE_LEFT, &pFaceRectID, &iCount);
-    
-    if ( iRet == CV_OK && iCount > 0 ) {
-        
-        NSMutableArray *arrPersons = [NSMutableArray array] ;
-        
-        for (int i = 0; i < iCount ; i ++) {
-            
-            cv_face_t rectIDMain = pFaceRectID[i] ;
-            
-            NSMutableArray *arrStrPoints = [NSMutableArray array] ;
-            
-            cv_rect_t rect = rectIDMain.rect ;
-            
-            CGRect rectFace = CGRectMake(rect.top , rect.left , rect.right - rect.left, rect.bottom - rect.top);
-            
-            NSMutableDictionary *dicPerson = [NSMutableDictionary dictionary] ;
-            [dicPerson setObject:arrStrPoints forKey:POINTS_KEY];
-            [dicPerson setObject:NSStringFromCGRect(rectFace) forKey:RECT_KEY];
-            
-            [arrPersons addObject:dicPerson] ;
-        }
-    
+    if (cv_check()) {
+        unsigned char *gray = malloc(iWidth * iHeight);
+        for (int i = 0; i < iHeight * iWidth; ++i)
+            gray[i] = 0.299f * baseAddress[i * 4 + 2] + 0.587f * baseAddress[i * 4 + 1] + 0.114f * baseAddress[i * 4];
+        rect = cv_face_track(gray, iWidth, iHeight);
+        free(gray);
+        CGRect rectFace = CGRectMake(rect.y, rect.x, rect.height, rect.width);
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self showFaceLandmarksAndFaceRectWithPersonsArray:arrPersons];
-        } ) ;
-        
-    } else {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self hideFace];
+            [self showFace:rectFace];
         } ) ;
     }
-    cv_face_release_tracker_result(pFaceRectID, iCount);
+    CIContext *context = [CIContext contextWithOptions:nil];
+    NSDictionary *opts = @{ CIDetectorAccuracy : CIDetectorAccuracyLow };
+    CIDetector *detector = [CIDetector detectorOfType:CIDetectorTypeFace context:context options:opts];
+    CIImage *ciImage = [CIImage imageWithCVPixelBuffer:pixelBuffer];
+    opts = @{ CIDetectorImageOrientation : [NSNumber numberWithInt:6]};
+    NSArray *features = [detector featuresInImage:ciImage options:opts];
+    
+    NSLog(@"A %dx%d frame with %lu faces", iWidth, iHeight, (unsigned long)[features count]);
+    for (CIFaceFeature *f in features)
+    {
+        NSLog(@"%@", NSStringFromCGRect(f.bounds));
+        
+        if (f.hasLeftEyePosition)
+            NSLog(@"Left eye %g %g", f.leftEyePosition.x, f.leftEyePosition.y);
+        
+        if (f.hasRightEyePosition)
+            NSLog(@"Right eye %g %g", f.rightEyePosition.x, f.rightEyePosition.y);
+        
+        if (f.hasMouthPosition)
+            NSLog(@"Mouth %g %g", f.mouthPosition.x, f.mouthPosition.y);
+    }
+    
+    
+    
     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
 }
 
 
-- (void) showFaceLandmarksAndFaceRectWithPersonsArray:(NSMutableArray *)arrPersons
+- (void) showFace:(CGRect)rectFace
 {
-    if (self.viewCanvas.hidden) {
-        self.viewCanvas.hidden = NO ;
-    }
-    self.viewCanvas.arrPersons = arrPersons ;
+    self.viewCanvas.strFace = NSStringFromCGRect(rectFace);
     [self.viewCanvas setNeedsDisplay] ;
-}
-
-- (void) hideFace {
-    if (!self.viewCanvas.hidden) {
-        self.viewCanvas.hidden = YES ;
-    }
 }
 
 @end

@@ -12,28 +12,16 @@
 }
 
 - (void)drawRect:(CGRect)rect {
-    [self drawPointWithPoints:self.arrPersons] ;
+    [self drawFace:CGRectFromString(self.strFace)] ;
 }
 
--(void)drawPointWithPoints:(NSArray *)arrPersons
+-(void)drawFace:(CGRect)faceRect
 {
     if (context) {
         CGContextClearRect(context, self.bounds) ;
     }
     context = UIGraphicsGetCurrentContext();
-    
-    for (NSDictionary *dicPerson in self.arrPersons) {
-        if ([dicPerson objectForKey:POINTS_KEY]) {
-            for (NSString *strPoints in [dicPerson objectForKey:POINTS_KEY]) {
-                CGPoint p = CGPointFromString(strPoints) ;
-                CGContextAddEllipseInRect(context, CGRectMake(p.x - 1 , p.y - 1 , 2 , 2));
-            }
-        }
-        if ([dicPerson objectForKey:RECT_KEY]) {
-            CGContextAddRect(context, CGRectFromString([dicPerson objectForKey:RECT_KEY])) ;
-        }
-    }
-
+    CGContextAddRect(context, faceRect) ;
     [[UIColor greenColor] set];
     CGContextSetLineWidth(context, 2);
     CGContextStrokePath(context);

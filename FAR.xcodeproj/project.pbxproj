@@ -7,17 +7,24 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CD11BEF21C72E465008AA4BB /* cv_face.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD11BEF01C72E465008AA4BB /* cv_face.cpp */; };
+		CD11BEF81C72ED3D008AA4BB /* far.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD11BEF61C72ED3D008AA4BB /* far.cpp */; };
+		CD11BEFA1C7365D2008AA4BB /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = CD11BEF91C7365D2008AA4BB /* .gitignore */; };
 		CD7E56981C60D95E00349541 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = CD7E56971C60D95E00349541 /* main.m */; };
 		CD7E569B1C60D95E00349541 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = CD7E569A1C60D95E00349541 /* AppDelegate.m */; };
 		CD7E569E1C60D95E00349541 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = CD7E569D1C60D95E00349541 /* ViewController.m */; };
 		CD7E56A11C60D95E00349541 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = CD7E569F1C60D95E00349541 /* Main.storyboard */; };
 		CD7E56A31C60D95E00349541 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CD7E56A21C60D95E00349541 /* Assets.xcassets */; };
 		CD7E56A61C60D95E00349541 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = CD7E56A41C60D95E00349541 /* LaunchScreen.storyboard */; };
-		CD7E56AF1C60DB3D00349541 /* far.c in Sources */ = {isa = PBXBuildFile; fileRef = CD7E56AD1C60DB3D00349541 /* far.c */; };
 		CD7E56B31C60E15600349541 /* CanvasView.m in Sources */ = {isa = PBXBuildFile; fileRef = CD7E56B21C60E15600349541 /* CanvasView.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CD11BEF01C72E465008AA4BB /* cv_face.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = cv_face.cpp; sourceTree = "<group>"; };
+		CD11BEF11C72E465008AA4BB /* cv_face.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cv_face.h; sourceTree = "<group>"; };
+		CD11BEF61C72ED3D008AA4BB /* far.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = far.cpp; sourceTree = "<group>"; };
+		CD11BEF71C72ED3D008AA4BB /* far.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = far.h; sourceTree = "<group>"; };
+		CD11BEF91C7365D2008AA4BB /* .gitignore */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		CD7E56931C60D95E00349541 /* FAR.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FAR.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD7E56971C60D95E00349541 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		CD7E56991C60D95E00349541 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -28,9 +35,6 @@
 		CD7E56A21C60D95E00349541 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CD7E56A51C60D95E00349541 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		CD7E56A71C60D95E00349541 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		CD7E56AD1C60DB3D00349541 /* far.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = far.c; sourceTree = "<group>"; };
-		CD7E56AE1C60DB3D00349541 /* far.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = far.h; sourceTree = "<group>"; };
-		CD7E56B01C60DD1700349541 /* cv_common.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cv_common.h; sourceTree = "<group>"; };
 		CD7E56B11C60E15600349541 /* CanvasView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CanvasView.h; sourceTree = "<group>"; };
 		CD7E56B21C60E15600349541 /* CanvasView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CanvasView.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -49,6 +53,7 @@
 		CD7E568A1C60D95E00349541 = {
 			isa = PBXGroup;
 			children = (
+				CD11BEF91C7365D2008AA4BB /* .gitignore */,
 				CD7E56951C60D95E00349541 /* FAR */,
 				CD7E56941C60D95E00349541 /* Products */,
 			);
@@ -65,9 +70,10 @@
 		CD7E56951C60D95E00349541 /* FAR */ = {
 			isa = PBXGroup;
 			children = (
+				CD11BEF61C72ED3D008AA4BB /* far.cpp */,
+				CD11BEF71C72ED3D008AA4BB /* far.h */,
 				CD7E56B11C60E15600349541 /* CanvasView.h */,
 				CD7E56B21C60E15600349541 /* CanvasView.m */,
-				CD7E56B01C60DD1700349541 /* cv_common.h */,
 				CD7E56991C60D95E00349541 /* AppDelegate.h */,
 				CD7E569A1C60D95E00349541 /* AppDelegate.m */,
 				CD7E569C1C60D95E00349541 /* ViewController.h */,
@@ -77,8 +83,8 @@
 				CD7E56A41C60D95E00349541 /* LaunchScreen.storyboard */,
 				CD7E56A71C60D95E00349541 /* Info.plist */,
 				CD7E56961C60D95E00349541 /* Supporting Files */,
-				CD7E56AD1C60DB3D00349541 /* far.c */,
-				CD7E56AE1C60DB3D00349541 /* far.h */,
+				CD11BEF01C72E465008AA4BB /* cv_face.cpp */,
+				CD11BEF11C72E465008AA4BB /* cv_face.h */,
 			);
 			path = FAR;
 			sourceTree = "<group>";
@@ -148,6 +154,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CD11BEFA1C7365D2008AA4BB /* .gitignore in Resources */,
 				CD7E56A61C60D95E00349541 /* LaunchScreen.storyboard in Resources */,
 				CD7E56A31C60D95E00349541 /* Assets.xcassets in Resources */,
 				CD7E56A11C60D95E00349541 /* Main.storyboard in Resources */,
@@ -161,10 +168,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CD11BEF21C72E465008AA4BB /* cv_face.cpp in Sources */,
 				CD7E569E1C60D95E00349541 /* ViewController.m in Sources */,
 				CD7E569B1C60D95E00349541 /* AppDelegate.m in Sources */,
+				CD11BEF81C72ED3D008AA4BB /* far.cpp in Sources */,
 				CD7E56981C60D95E00349541 /* main.m in Sources */,
-				CD7E56AF1C60DB3D00349541 /* far.c in Sources */,
 				CD7E56B31C60E15600349541 /* CanvasView.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -1,54 +1,124 @@
-//
-//  far.h
-//  FAR
-//
-//  Created by MO TAO on 2/2/2016.
-//  Copyright © 2016 MO TAO. All rights reserved.
-//
-
 #ifndef far_h
 #define far_h
 
-#include "stdlib.h"
-#include "cv_common.h"
+#include "cv_face.h"
 
-/// @brief 人脸信息结构体
-typedef struct cv_face_t {
-    cv_rect_t rect;			///< 代表面部的矩形区域
-    float score;			///< 置信度，用于筛除负例，与人脸照片质量无关，值越高表示置信度越高。
-    int yaw;			///< 水平转角，真实度量的左负右正
-    int pitch;			///< 俯仰角，真实度量的上负下正
-    int roll;			///< 旋转角，真实度量的左负右正
-    int ID;				///< faceID，用于表示在实时人脸跟踪中的相同人脸在不同帧多次出现，在人脸检测的结果中无实际意义
-} cv_face_t;
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <cstring>
+using namespace std;
 
-/// @brief  人脸朝向
-typedef enum {
-    CV_FACE_UP = 0,		///< 人脸向上，即人脸朝向正常
-    CV_FACE_LEFT = 1,	///< 人脸向左，即人脸被逆时针旋转了90度
-    CV_FACE_DOWN = 2,	///< 人脸向下，即人脸被逆时针旋转了180度
-    CV_FACE_RIGHT = 3	///< 人脸向右，即人脸被逆时针旋转了270度
-} cv_face_orientation;
+#include "Eigen/Dense"
+using namespace Eigen;
 
-cv_handle_t cv_face_create_tracker();
+const float PI_2 = acos(-1.0f) * 0.5f;
 
-void cv_face_destroy_tracker(cv_handle_t tracker_handle);
+const int cell_min = 2;
+const int fast_n = 25;
+const int fast_step = 2;
+const int fine_n = 600;
+const int cell_n = 150;
+const int fine_steps[] = { 27, 9, 3, 1 };
+const int max_iteration = 9;
+const float padding = 1.6f;
+const float sigmoid_factor = 7.141f;
+const float sigmoid_bias = 0.482f;
+const float translate_eps = 0.005f;
+const float threshold_error = 0.4f;
 
-cv_result_t
-cv_face_track(
-    cv_handle_t tracker_handle,
-    const unsigned char *image,
-    cv_pixel_format pixel_format,
-    int image_width,
-    int image_height,
-    int image_stride,
-    cv_face_orientation orientation,
-    cv_face_t **p_faces_array,
-    int *p_faces_count
-);
+typedef Matrix<float, 8, 1> Vector8f;
+typedef Matrix<float, 32, 1> Vector32f;
 
-void cv_face_reset_tracker(cv_handle_t tracker_handle);
+class Surf
+{
+public:
+	Surf(int width, int height);
 
-void cv_face_release_tracker_result(cv_face_t *faces_array, int faces_count);
+	Vector4f kernel(float angle);
+	void process(const unsigned char *gray, float angle);
+	void set_cell(float cell);
+	void set_step(int step);
+
+	float* cell_hist(int x, int y);
+	float cell_norm(int x, int y);
+	void descriptor(float x, float y, float *f);
+	void gradient(float x, float y, float *f, float *dx, float *dy);
+	void descriptor4(float x, float y, float *f);
+	void gradient4(float x, float y, float *f, float *dx, float *dy);
+
+public:
+	float angle, tx[4], ty[4];
+	Vector4f kx, ky;
+	int W, H, C, step;
+
+private:
+	MatrixXf sum, hist, norm;
+	MatrixXi flag;
+	Vector8f zero;
+};
+
+class Warp
+{
+public:
+	Warp(int width, int height);
+
+	void setr(Vector3f rotate);
+	void sett(Vector3f translate);
+
+	Vector2f project(Vector3f p);
+	Vector3f transform(Vector3f p);
+	Vector2f transform2(Vector3f p);
+
+	Matrix<float, 2, 6> gradient(Vector3f p);
+	void steepest(Matrix<float, 6, 1> parameters);
+	void euler(float &roll, float &yaw, float &pitch);
+
+public:
+	Vector2f c;
+	float f;
+	Vector3f r;
+	Vector3f t;
+
+private:
+	Matrix3f R, Dx, Dy, Dz;
+};
+
+class FART
+{
+public:
+	FART(const unsigned char *gray, int width, int height, cv_rect_t rect, ostream *os = NULL);
+	cv_rect_t track(const unsigned char *gray);
+    void restart(const unsigned char *gray, cv_rect_t rect);
+
+private:
+	Vector3f locate(cv_rect_t rect);
+	cv_rect_t window(Vector3f translate);
+
+	void fast_train(Warp warp);
+	void fine_train(Warp warp);
+	Vector3f fast_test(Warp warp);
+	Warp fine_test(Warp warp);
+
+	float sigmoid(float x);
+	Warp Lucas_Kanade(Warp warp);
+	float evaluate(Warp warp);
+
+public:
+	ostream *log;
+    int image_width, image_height;
+    float window_width, window_height;
+	Surf feature;
+    Warp warp;
+	vector<Vector2i> fast_samples;
+	vector<Vector3f> fine_samples;
+	vector<float> fine_errors;
+	MatrixXf fast_model, fine_model;
+    float error, roll, yaw, pitch;
+	int N;
+};
+
+ostream& operator<<(ostream& cout, const cv_rect_t &rect);
 
 #endif /* far_h */
+

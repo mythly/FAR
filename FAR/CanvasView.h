@@ -8,9 +8,6 @@
 
 @interface CanvasView : UIView
 
-#define POINTS_KEY @"POINTS_KEY"
-#define RECT_KEY   @"RECT_KEY"
-
-@property (nonatomic , strong) NSArray *arrPersons ;
+@property (nonatomic , strong) NSString *strFace ;
 
 @end
