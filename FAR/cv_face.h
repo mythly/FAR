@@ -20,10 +20,10 @@ typedef struct cv_rect_t {
 extern "C" {
 #endif
     
-void cv_init(const unsigned char *image_gray, int image_width, int image_height, cv_rect_t face_rect);
-cv_rect_t cv_face_track(const unsigned char *image_gray, int image_width, int image_height);
-bool cv_check();
-void cv_release();
+    void cv_init(const unsigned char *image_gray, int image_width, int image_height, cv_rect_t face_rect);
+    cv_rect_t cv_face_track(const unsigned char *image_gray);
+    bool cv_check();
+    void cv_release();
     
 #ifdef __cplusplus
 }

@@ -9,10 +9,12 @@
 #import "ViewController.h"
 #import <AVFoundation/AVFoundation.h>
 #import <ImageIO/ImageIO.h>
-#import "cv_face.h"
 #import "CanvasView.h"
+#import "cv_face.h"
 
 @interface ViewController () <AVCaptureVideoDataOutputSampleBufferDelegate>
+
+@property (nonatomic , strong) CIContext *context;
 
 @property (nonatomic , strong) AVCaptureVideoPreviewLayer *captureVideoPreviewLayer ;
 
@@ -42,6 +44,8 @@
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
+    
+    self.context = [CIContext contextWithOptions:nil];
     
     AVCaptureSession *session = [[AVCaptureSession alloc] init];
     
@@ -102,43 +106,44 @@
     
     int iWidth  = (int)CVPixelBufferGetWidth(pixelBuffer);
     int iHeight = (int)CVPixelBufferGetHeight(pixelBuffer);
+    unsigned char *gray = malloc(iWidth * iHeight);
+    for (int i = 0; i < iHeight * iWidth; ++i)
+        gray[i] = 0.299f * baseAddress[i * 4 + 2] + 0.587f * baseAddress[i * 4 + 1] + 0.114f * baseAddress[i * 4];
+     
     cv_rect_t rect;
+    float l = (iWidth < iHeight ? iWidth : iHeight) * 0.25f;
+    rect.x = iWidth * 0.5f - l * 0.5f;
+    rect.y = iHeight * 0.5f - l * 0.5f;
+    rect.width = rect.height = l;
     
+    NSLog(@"new frame %dx%d", iWidth, iHeight);
     if (cv_check()) {
-        unsigned char *gray = malloc(iWidth * iHeight);
-        for (int i = 0; i < iHeight * iWidth; ++i)
-            gray[i] = 0.299f * baseAddress[i * 4 + 2] + 0.587f * baseAddress[i * 4 + 1] + 0.114f * baseAddress[i * 4];
-        rect = cv_face_track(gray, iWidth, iHeight);
-        free(gray);
-        CGRect rectFace = CGRectMake(rect.y, rect.x, rect.height, rect.width);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self showFace:rectFace];
-        } ) ;
+        rect = cv_face_track(gray);
+        NSLog(@"track at [(%.0f,%.0f) %.0fx%.0f]", rect.x, rect.y, rect.width, rect.height);
+    }else {
+        NSDictionary *opts = @{ CIDetectorAccuracy : CIDetectorAccuracyLow };
+        CIDetector *detector = [CIDetector detectorOfType:CIDetectorTypeFace context:self.context options:opts];
+        CIImage *ciImage = [CIImage imageWithCVPixelBuffer:pixelBuffer];
+        opts = @{ CIDetectorImageOrientation : [NSNumber numberWithInt:6]};
+        NSArray *features = [detector featuresInImage:ciImage options:opts];
+        if ([features count] > 0) {
+            CIFeature *f = [features objectAtIndex:0];
+            rect.x = f.bounds.origin.x;
+            rect.y = f.bounds.origin.y;
+            rect.width = f.bounds.size.width;
+            rect.height = f.bounds.size.height;
+            cv_init(gray, iWidth, iHeight, rect);
+            NSLog(@"detect at [(%.0f,%.0f) %.0fx%.0f]", rect.x, rect.y, rect.width, rect.height);
+        }else
+            NSLog(@"detect nothing\n");
     }
-    CIContext *context = [CIContext contextWithOptions:nil];
-    NSDictionary *opts = @{ CIDetectorAccuracy : CIDetectorAccuracyLow };
-    CIDetector *detector = [CIDetector detectorOfType:CIDetectorTypeFace context:context options:opts];
-    CIImage *ciImage = [CIImage imageWithCVPixelBuffer:pixelBuffer];
-    opts = @{ CIDetectorImageOrientation : [NSNumber numberWithInt:6]};
-    NSArray *features = [detector featuresInImage:ciImage options:opts];
+
+    CGRect rectFace = CGRectMake(iHeight - rect.height - rect.y, rect.x, rect.height, rect.width);
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self showFace:rectFace];
+    } ) ;
     
-    NSLog(@"A %dx%d frame with %lu faces", iWidth, iHeight, (unsigned long)[features count]);
-    for (CIFaceFeature *f in features)
-    {
-        NSLog(@"%@", NSStringFromCGRect(f.bounds));
-        
-        if (f.hasLeftEyePosition)
-            NSLog(@"Left eye %g %g", f.leftEyePosition.x, f.leftEyePosition.y);
-        
-        if (f.hasRightEyePosition)
-            NSLog(@"Right eye %g %g", f.rightEyePosition.x, f.rightEyePosition.y);
-        
-        if (f.hasMouthPosition)
-            NSLog(@"Mouth %g %g", f.mouthPosition.x, f.mouthPosition.y);
-    }
-    
-    
-    
+    free(gray);
     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
 }
 
