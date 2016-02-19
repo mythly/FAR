@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		CD11BEF21C72E465008AA4BB /* cv_face.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD11BEF01C72E465008AA4BB /* cv_face.cpp */; };
-		CD11BEF81C72ED3D008AA4BB /* far.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CD11BEF61C72ED3D008AA4BB /* far.cpp */; };
 		CD11BEFA1C7365D2008AA4BB /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = CD11BEF91C7365D2008AA4BB /* .gitignore */; };
 		CD7E56981C60D95E00349541 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = CD7E56971C60D95E00349541 /* main.m */; };
 		CD7E569B1C60D95E00349541 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = CD7E569A1C60D95E00349541 /* AppDelegate.m */; };
@@ -17,13 +15,10 @@
 		CD7E56A31C60D95E00349541 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CD7E56A21C60D95E00349541 /* Assets.xcassets */; };
 		CD7E56A61C60D95E00349541 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = CD7E56A41C60D95E00349541 /* LaunchScreen.storyboard */; };
 		CD7E56B31C60E15600349541 /* CanvasView.m in Sources */ = {isa = PBXBuildFile; fileRef = CD7E56B21C60E15600349541 /* CanvasView.m */; };
+		CDC7CBC91C77390500E2F96B /* fartracker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = CDC7CBC71C77390500E2F96B /* fartracker.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		CD11BEF01C72E465008AA4BB /* cv_face.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = cv_face.cpp; sourceTree = "<group>"; };
-		CD11BEF11C72E465008AA4BB /* cv_face.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cv_face.h; sourceTree = "<group>"; };
-		CD11BEF61C72ED3D008AA4BB /* far.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = far.cpp; sourceTree = "<group>"; };
-		CD11BEF71C72ED3D008AA4BB /* far.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = far.h; sourceTree = "<group>"; };
 		CD11BEF91C7365D2008AA4BB /* .gitignore */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
 		CD7E56931C60D95E00349541 /* FAR.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FAR.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CD7E56971C60D95E00349541 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
@@ -37,6 +32,8 @@
 		CD7E56A71C60D95E00349541 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		CD7E56B11C60E15600349541 /* CanvasView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CanvasView.h; sourceTree = "<group>"; };
 		CD7E56B21C60E15600349541 /* CanvasView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CanvasView.m; sourceTree = "<group>"; };
+		CDC7CBC71C77390500E2F96B /* fartracker.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = fartracker.cpp; sourceTree = "<group>"; };
+		CDC7CBC81C77390500E2F96B /* fartracker.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fartracker.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,8 +67,8 @@
 		CD7E56951C60D95E00349541 /* FAR */ = {
 			isa = PBXGroup;
 			children = (
-				CD11BEF61C72ED3D008AA4BB /* far.cpp */,
-				CD11BEF71C72ED3D008AA4BB /* far.h */,
+				CDC7CBC71C77390500E2F96B /* fartracker.cpp */,
+				CDC7CBC81C77390500E2F96B /* fartracker.h */,
 				CD7E56B11C60E15600349541 /* CanvasView.h */,
 				CD7E56B21C60E15600349541 /* CanvasView.m */,
 				CD7E56991C60D95E00349541 /* AppDelegate.h */,
@@ -83,8 +80,6 @@
 				CD7E56A41C60D95E00349541 /* LaunchScreen.storyboard */,
 				CD7E56A71C60D95E00349541 /* Info.plist */,
 				CD7E56961C60D95E00349541 /* Supporting Files */,
-				CD11BEF01C72E465008AA4BB /* cv_face.cpp */,
-				CD11BEF11C72E465008AA4BB /* cv_face.h */,
 			);
 			path = FAR;
 			sourceTree = "<group>";
@@ -168,10 +163,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				CD11BEF21C72E465008AA4BB /* cv_face.cpp in Sources */,
 				CD7E569E1C60D95E00349541 /* ViewController.m in Sources */,
 				CD7E569B1C60D95E00349541 /* AppDelegate.m in Sources */,
-				CD11BEF81C72ED3D008AA4BB /* far.cpp in Sources */,
+				CDC7CBC91C77390500E2F96B /* fartracker.cpp in Sources */,
 				CD7E56981C60D95E00349541 /* main.m in Sources */,
 				CD7E56B31C60E15600349541 /* CanvasView.m in Sources */,
 			);
