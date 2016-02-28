@@ -4,7 +4,7 @@
 
 far_tracker_t far_init(const unsigned char *gray, int width, int height, far_rect_t rect)
 {
-	return new FARTracker(gray, width, height, rect, NULL);
+    return new FARTracker(gray, width, height, rect, NULL);//&cerr);
 }
 
 far_rect_t far_track(far_tracker_t tracker, const unsigned char *gray)
@@ -14,11 +14,22 @@ far_rect_t far_track(far_tracker_t tracker, const unsigned char *gray)
 	return t->track(gray);
 }
 
-far_rect_t far_restart(far_tracker_t tracker, const unsigned char *gray, far_rect_t rect)
+far_rect_t far_retrack(far_tracker_t tracker, const unsigned char *gray, const far_rect_t rects[], int n_rects)
 {
 	assert(tracker != NULL);
-	FARTracker *t = static_cast<FARTracker*>(tracker);
-	return t->restart(gray, rect);
+	FARTracker *t = static_cast<FARTracker*>(tracker);	
+	return t->retrack(gray, vector<far_rect_t>(rects, rects + n_rects));
+}
+
+void far_transform(far_tracker_t tracker, far_rect_t start_rect, float *x, float *y)
+{
+    assert(tracker != NULL);
+    FARTracker *t = static_cast<FARTracker*>(tracker);
+    assert(x != NULL && y != NULL);
+    Vector3f p3(*x - (start_rect.x + start_rect.width * 0.5f), *y - (start_rect.y + start_rect.height * 0.5f), 0.0f);
+    Vector2f p2 = t->warp.transform2(p3);
+    *x = p2.x();
+    *y = p2.y();
 }
 
 bool far_check(far_tracker_t tracker)
@@ -32,7 +43,7 @@ void far_release(far_tracker_t tracker)
 {
 	if (tracker != NULL) {
 		FARTracker *t = static_cast<FARTracker*>(tracker);
-		delete t;		
+		delete t;
 	}
 }
 
@@ -69,23 +80,23 @@ far_rect_t rectBound(far_rect_t rect)
 ostream& operator<<(ostream& cout, const far_rect_t&rect)
 {
 	cout << "[" << int(rect.width) << " x " << int(rect.height);
-	cout << " from (" << int(rect.x) << ", " << int(rect.y) << ")]";	
+	cout << " from (" << int(rect.x) << ", " << int(rect.y) << ")]";
 	return cout;
 }
 
-Surf::Surf(int width, int height)
+Surf::Surf(int width, int height):
+W(width), H(height), C(0), step(0),
+img(H + 2, W + 2),
+flag(H, W),
+sum(H + 1, W + 1),
+hist(H, W),
+zero(1, 1)
 {
-	W = width;
-	H = height;
-	C = 0;
-	step = 0;	
-	sum = MatrixXf((W + 1) * 8, H + 1);	
-	hist = MatrixXf(W * 8, H);	
-	flag = MatrixXi(W, H);
-	zero = Vector8f::Zero();
+	sum.set(0.0f);
+	zero.set(0.0f);	
 }
 
-Vector4f Surf::kernel(float angle)
+void Surf::rotate(float angle, float kernel[4])
 {
 	float c = cos(angle), s = sin(angle);
 	float wx = c * (1.0f - abs(s));
@@ -95,81 +106,106 @@ Vector4f Surf::kernel(float angle)
 		(s >= 0 ? wu : wv) = c * s;
 	else
 		(s >= 0 ? wv : wu) = -c * s;
-	return Vector4f(wx, wy, wu, wv);
+	kernel[0] = wx;
+	kernel[1] = wy;
+	kernel[2] = wu;
+	kernel[3] = wv;	
 }
 
 void Surf::process(const unsigned char *gray, float angle)
-{
-	this->angle = angle;
-	Vector4f kx = kernel(angle), ky = kernel(angle + PI_2);
-	sum.setConstant(0.0f);		
-	for (int y = 0; y < H; ++y) {
-		int y0 = y > 0 ? y - 1 : y;
-		int y1 = y < H - 1 ? y + 1 : y;
-		const unsigned char *ptr_y0 = gray + y0 * W;
-		const unsigned char *ptr_y = gray + y * W;
-		const unsigned char *ptr_y1 = gray + y1 * W;
-		for (int x = 0; x < W; ++x) {
-			int x0 = x > 0 ? x - 1 : x;
-			int x1 = x < W - 1 ? x + 1 : x;
-			float gx = float(ptr_y[x1]) - float(ptr_y[x0]);
-			float gy = float(ptr_y1[x]) - float(ptr_y0[x]);
-			float gu = float(ptr_y1[x1]) - float(ptr_y0[x0]);
-			float gv = float(ptr_y1[x0]) - float(ptr_y0[x1]);
-			Vector4f g(gx, gy, gu, gv);
-			float dx = kx.dot(g), dy = ky.dot(g);
-			float *f = sum.data() + ((y + 1) * (W + 1) + x + 1) * 8;
-			switch ((dx > 0.0f ? 1 : 0) + (dy > 0.0f ? 2 : 0)) {
-			case 0:
-				f[0] = dx;
-				f[2] = -dx;
-				f[4] = dy;
-				f[6] = -dy;
-				break;
-			case 1:
-				f[0] = dx;
-				f[2] = dx;
-				f[5] = dy;
-				f[7] = -dy;
-				break;
-			case 2:
-				f[1] = dx;
-				f[3] = -dx;
-				f[4] = dy;
-				f[6] = dy;
-				break;
-			case 3:
-				f[1] = dx;
-				f[3] = dx;
-				f[5] = dy;
-				f[7] = dy;
-				break;
+{		
+	for (int y = 0; y < img.rows; ++y) {
+		int yy = y - 1;
+		if (y == 0)
+			yy = 0;
+		if (y == img.rows - 1)
+			yy = H - 1;
+		float *f = img.ptr(y);
+		const unsigned char *g = gray + yy * W;		
+		f[0] = float(g[0]);
+		f[img.cols - 1] = float(g[W - 1]);
+		for (int x = 1; x <= W; ++x)
+			f[x] = float(g[x - 1]);
+	}	
+	A = angle;
+	float kx[4], ky[4];
+	rotate(A, kx);
+	rotate(A + PI_2, ky);	
+	for (int y = 1; y <= H; ++y) {
+		float *f0 = img.ptr(y - 1);
+		float *f = img.ptr(y);
+		float *f1 = img.ptr(y + 1);
+		float *s0 = sum.ptr(y - 1);
+		float *s1 = sum.ptr(y);
+		float s[8] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+		for (int x = 1; x <= W; ++x) {
+			++f0;
+			++f;
+			++f1;
+			s0 += 8;
+			s1 += 8;
+			float gx = f[1] - f[-1];
+			float gy = f1[0] - f0[0];
+			float gu = f1[1] - f0[-1];
+			float gv = f1[-1] - f0[1];
+			float dx = kx[0] * gx + kx[1] * gy + kx[2] * gu + kx[3] * gv;
+			float dy = ky[0] * gx + ky[1] * gy + ky[2] * gu + ky[3] * gv;
+			if (dx > 0.0f) {
+				if (dy > 0.0f) {
+					s[1] += dx;
+					s[3] += dx;
+					s[5] += dy;
+					s[7] += dy;
+				}
+				else {
+					s[0] += dx;
+					s[2] += dx;
+					s[5] += dy;
+					s[7] += -dy;
+				}
 			}
+			else {
+				if (dy > 0.0f) {
+					s[1] += dx;
+					s[3] += -dx;
+					s[4] += dy;
+					s[6] += dy;
+				}
+				else {
+					s[0] += dx;
+					s[2] += -dx;
+					s[4] += dy;
+					s[6] += -dy;
+				}
+			}
+			s1[0] = s0[0] + s[0];
+			s1[1] = s0[1] + s[1];
+			s1[2] = s0[2] + s[2];
+			s1[3] = s0[3] + s[3];
+			s1[4] = s0[4] + s[4];
+			s1[5] = s0[5] + s[5];
+			s1[6] = s0[6] + s[6];
+			s1[7] = s0[7] + s[7];
 		}
 	}
-	for (int y = 1; y <= H; ++y) {		
-		for (int x = 1; x <= W; ++x)
-			sum.col(y).segment<8>(x * 8) += sum.col(y).segment<8>((x - 1) * 8);
-		sum.col(y) += sum.col(y - 1);
-	}	
+
 	C = 0;
 	step = 0;
-	flag.setConstant(0);
-	zero.setConstant(0.0f);
+	flag.set(0);	
 }
 
 void Surf::set_cell(float cell)
 {
 	cell = cell * 0.5f;
-	tx[0] = -cell; ty[0] = -cell;
-	tx[1] = cell; ty[1] = -cell;
-	tx[2] = cell; ty[2] = cell;
-	tx[3] = -cell; ty[3] = cell;
+	X[0] = -cell; Y[0] = -cell;
+	X[1] = cell; Y[1] = -cell;
+	X[2] = cell; Y[2] = cell;
+	X[3] = -cell; Y[3] = cell;
 	for (int i = 0; i < 4; ++i) {
-		float x = cos(angle) * tx[i] - sin(angle) * ty[i];
-		float y = sin(angle) * tx[i] + cos(angle) * ty[i];
-		tx[i] = x;
-		ty[i] = y;
+		float x = cos(A) * X[i] - sin(A) * Y[i];
+		float y = sin(A) * X[i] + cos(A) * Y[i];
+		X[i] = x;
+		Y[i] = y;
 	}
 	C = max(int(floor(cell)), cell_min);
 }
@@ -179,26 +215,28 @@ void Surf::set_step(int step)
 	this->step = step;
 }
 
-Ref<Vector8f> Surf::cell_hist(int x, int y)
-{
-	if (x < 0 || x >= W || y < 0 || y >= H)
-		return zero;
-	if (flag(x, y) != C) {
+float* Surf::cell_hist(int x, int y)
+{	
+	if (x < 0 || x >= flag.cols || y < 0 || y >= flag.rows)
+		return zero.data();
+	if (flag(y, x) != C) {
 		int x0 = max(x - C, 0);
 		int x1 = min(x + C + 1, W);
 		int y0 = max(y - C, 0);
-		int y1 = min(y + C + 1, H);	
-		Ref<Vector8f> s00 = sum.col(y0).segment<8>(x0 * 8);
-		Ref<Vector8f> s01 = sum.col(y0).segment<8>(x1 * 8);
-		Ref<Vector8f> s10 = sum.col(y1).segment<8>(x0 * 8);
-		Ref<Vector8f> s11 = sum.col(y1).segment<8>(x1 * 8);
-		hist.col(y).segment<8>(x * 8) = s11 + s00 - s01 - s10;
-		flag(x, y) = C;
+		int y1 = min(y + C + 1, H);
+		float *s00 = sum.ptr(y0, x0);
+		float *s01 = sum.ptr(y0, x1);
+		float *s10 = sum.ptr(y1, x0);
+		float *s11 = sum.ptr(y1, x1);
+		float *h = hist.ptr(y, x);
+		for (int i = 0; i < 8; ++i)
+			h[i] = s11[i] + s00[i] - s01[i] - s10[i];
+		flag(y, x) = C;
 	}
-	return hist.col(y).segment<8>(x * 8);
+	return hist.ptr(y, x);
 }
 
-void Surf::descriptor(float x, float y, Ref<Vector8f> f)
+void Surf::descriptor(float x, float y, float *f)
 {
 	x = x / step;
 	y = y / step;
@@ -209,15 +247,18 @@ void Surf::descriptor(float x, float y, Ref<Vector8f> f)
 	float w00 = wx0 * wy0;
 	float w01 = wx0 * wy1;
 	float w10 = wx1 * wy0;
-	float w11 = wx1 * wy1;	
-	Ref<Vector8f> f00 = cell_hist(ixp * step, iyp * step);
-	Ref<Vector8f> f01 = cell_hist(ixp * step, (iyp + 1) * step);
-	Ref<Vector8f> f10 = cell_hist((ixp + 1) * step, iyp * step);
-	Ref<Vector8f> f11 = cell_hist((ixp + 1) * step, (iyp + 1) * step);
-	f = w00 * f00 + w01 * f01 + w10 * f10 + w11 * f11;
+	float w11 = wx1 * wy1;
+	ixp *= step;
+	iyp *= step;
+	float *f00 = cell_hist(ixp, iyp);
+	float *f01 = cell_hist(ixp, iyp + step);
+	float *f10 = cell_hist(ixp + step, iyp);
+	float *f11 = cell_hist(ixp + step, iyp + step);
+	for (int i = 0; i < 8; ++i)
+		f[i] = f00[i] * w00 + f01[i] * w01 + f10[i] * w10 + f11[i] * w11;	
 }
 
-void Surf::gradient(float x, float y, Ref<Vector8f> f, Ref<Vector8f> dx, Ref<Vector8f> dy)
+void Surf::gradient(float x, float y, float *f, float *dx, float *dy)
 {
 	x = x / step;
 	y = y / step;
@@ -233,38 +274,52 @@ void Surf::gradient(float x, float y, Ref<Vector8f> f, Ref<Vector8f> dx, Ref<Vec
 	wy0 /= step;
 	wx1 /= step;
 	wy1 /= step;
-	Ref<Vector8f> f00 = cell_hist(ixp * step, iyp * step);
-	Ref<Vector8f> f01 = cell_hist(ixp * step, (iyp + 1) * step);
-	Ref<Vector8f> f10 = cell_hist((ixp + 1) * step, iyp * step);
-	Ref<Vector8f> f11 = cell_hist((ixp + 1) * step, (iyp + 1) * step);
-	f = w00 * f00 + w01 * f01 + w10 * f10 + w11 * f11;
-	dx = wy0 * (f10 - f00) + wy1 * (f11 - f01);
-	dy = wx0 * (f01 - f00) + wx1 * (f11 - f10);	
+	ixp *= step;
+	iyp *= step;
+	float *f00 = cell_hist(ixp, iyp);
+	float *f01 = cell_hist(ixp, iyp + step);
+	float *f10 = cell_hist(ixp + step, iyp);
+	float *f11 = cell_hist(ixp + step, iyp + step);
+	for (int i = 0; i < 8; ++i) {
+		f[i] = f00[i] * w00 + f01[i] * w01 + f10[i] * w10 + f11[i] * w11;
+		dx[i] = (f10[i] - f00[i]) * wy0 + (f11[i] - f01[i]) * wy1;
+		dy[i] = (f01[i] - f00[i]) * wx0 + (f11[i] - f10[i]) * wx1;
+	}
 }
 
-void Surf::descriptor4(float x, float y, Ref<Vector32f> f)
+void Surf::descriptor4(float x, float y, float *f)
 {
 	for (int i = 0; i < 4; ++i)
-		descriptor(x + tx[i], y + ty[i], f.segment<8>(i * 8));
-	float S = f.squaredNorm();	
+		descriptor(x + X[i], y + Y[i], f + i * 8);
+	float S = 0.0f;
+	for (int i = 0; i < 32; ++i)
+		S += f[i] * f[i];
 	float iS = S < 1.0f ? 0.0f : 1.0f / sqrt(S);
-	f *= iS;	
+	for (int i = 0; i < 32; ++i)
+		f[i] *= iS;
 }
 
-void Surf::gradient4(float x, float y, Ref<Vector32f> f, Ref<Vector32f> dx, Ref<Vector32f> dy)
+void Surf::gradient4(float x, float y, float *f, float *dx, float *dy)
 {
 	for (int i = 0; i < 4; ++i)
-		gradient(x + tx[i], y + ty[i], f.segment<8>(i * 8), dx.segment<8>(i * 8), dy.segment<8>(i * 8));
-	float S = f.squaredNorm(), Sx = f.dot(dx), Sy = f.dot(dy);	
+		gradient(x + X[i], y + Y[i], f + i * 8, dx + i * 8, dy + i * 8);
+	float S = 0.0f, Sx = 0.0f, Sy = 0.0f;
+	for (int i = 0; i < 32; ++i) {
+		S += f[i] * f[i];
+		Sx += f[i] * dx[i];
+		Sy += f[i] * dy[i];
+	}
 	float iS = S < 1.0f ? 0.0f : 1.0f / sqrt(S);
 	float iSx = Sx * iS * iS * iS;
 	float iSy = Sy * iS * iS * iS;
-	dx = iS * dx - iSx * f;	
-	dy = iS * dy - iSy * f;	
-	f *= iS;
+	for (int i = 0; i < 32; ++i) {
+		dx[i] = dx[i] * iS - f[i] * iSx;
+		dy[i] = dy[i] * iS - f[i] * iSy;
+		f[i] *= iS;
+	}
 }
 
-Warp::Warp(int width, int height):
+Warp::Warp(int width, int height) :
 c(width * 0.5f, height * 0.5f),
 f(float(max(width, height)))
 {
@@ -277,11 +332,11 @@ void Warp::setr(Vector3f rotate)
 	r = rotate;
 	double rx = r(0), ry = r(1), rz = r(2);
 	double theta = sqrt(rx * rx + ry * ry + rz * rz);
-	double R[9], J[27];	
+	double R[9], J[27];
 	if (theta < DBL_EPSILON)
 	{
 		memset(R, 0, sizeof(R));
-		R[0] = R[4] = R[8] = 1;		
+		R[0] = R[4] = R[8] = 1;
 		memset(J, 0, sizeof(J));
 		J[5] = J[15] = J[19] = -1;
 		J[7] = J[11] = J[21] = 1;
@@ -298,9 +353,9 @@ void Warp::setr(Vector3f rotate)
 		rx *= itheta; ry *= itheta; rz *= itheta;
 
 		double rrt[] = { rx*rx, rx*ry, rx*rz, rx*ry, ry*ry, ry*rz, rx*rz, ry*rz, rz*rz };
-		double _r_x_[] = { 0, -rz, ry, rz, 0, -rx, -ry, rx, 0 };		
+		double _r_x_[] = { 0, -rz, ry, rz, 0, -rx, -ry, rx, 0 };
 		for (int k = 0; k < 9; k++)
-			R[k] = c*I[k] + c1*rrt[k] + s*_r_x_[k];		
+			R[k] = c*I[k] + c1*rrt[k] + s*_r_x_[k];
 		double drrt[] = { rx + rx, ry, rz, ry, 0, 0, rz, 0, 0,
 			0, rx, 0, rx, ry + ry, rz, 0, rz, 0,
 			0, 0, rx, 0, 0, ry, rx, ry, rz + rz };
@@ -315,7 +370,7 @@ void Warp::setr(Vector3f rotate)
 			for (int k = 0; k < 9; k++)
 				J[i * 9 + k] = a0*I[k] + a1*rrt[k] + a2*drrt[i * 9 + k] +
 				a3*_r_x_[k] + a4*d_r_x_[i * 9 + k];
-		}		
+		}
 	}
 
 	float _R[9], _J[3][9];
@@ -323,7 +378,7 @@ void Warp::setr(Vector3f rotate)
 		_R[i] = float(R[i]);
 	for (int i = 0; i < 27; ++i)
 		_J[i / 9][i % 9] = float(J[i]);
-	this->R << _R[0], _R[1], _R[2], _R[3], _R[4], _R[5], _R[6], _R[7], _R[8];		
+	this->R << _R[0], _R[1], _R[2], _R[3], _R[4], _R[5], _R[6], _R[7], _R[8];
 	Dx << _J[0][0], _J[1][0], _J[2][0],
 		_J[0][3], _J[1][3], _J[2][3],
 		_J[0][6], _J[1][6], _J[2][6];
@@ -347,7 +402,7 @@ Vector2f Warp::project(Vector3f p)
 
 Vector3f Warp::transform(Vector3f p)
 {
-	return R * p + t;	
+	return R * p + t;
 }
 
 Vector2f Warp::transform2(Vector3f p)
@@ -359,14 +414,11 @@ Matrix<float, 2, 6> Warp::gradient(Vector3f p)
 {
 	Matrix3f D1 = p.x() * Dx + p.y() * Dy + p.z() * Dz;
 	Vector3f tp = transform(p);
-	Matrix<float, 2, 3> D2;
-	D2 <<  f / tp.z(), 0.0f, -f * tp.x() / (tp.z() * tp.z()), 
-		0.0f, f / tp.z(), -f * tp.y() / (tp.z() * tp.z());
-	Matrix<float, 2, 3> D3 = D2 * D1;
+	Matrix<float, 2, 3> D2;	
+	D2 << f / tp.z(), 0.0f, -f * tp.x() / (tp.z() * tp.z()),
+		0.0f, f / tp.z(), -f * tp.y() / (tp.z() * tp.z());	
 	Matrix<float, 2, 6> G;
-
-	G << D3(0, 0), D3(0, 1), D3(0, 2), D2(0, 0), D2(0, 1), D2(0, 2),
-		D3(1, 0), D3(1, 1), D3(1, 2), D2(1, 0), D2(1, 1), D2(1, 2);
+	G << D2 * D1, D2;
 	return G;
 }
 
@@ -397,7 +449,7 @@ void Warp::euler(float &roll, float &yaw, float &pitch)
 }
 
 FARTracker::FARTracker(const unsigned char *gray, int width, int height, far_rect_t rect, ostream *os) :
-image_width(width), image_height(height), 
+image_width(width), image_height(height),
 window_width(rect.width), window_height(rect.height),
 warp(width, height),
 feature(width, height),
@@ -409,11 +461,11 @@ log(os)
 	int H = int(floor(window_height / (2.0f * fine_stride)));
 	for (int y = 0; y <= 2 * H; ++y)
 	for (int x = 0; x <= 2 * W; ++x)
-		fine_samples.push_back(Vector3f((x - W) * fine_stride, (y - H) * fine_stride, 0.0f));	
+		fine_samples.push_back(Vector3f((x - W) * fine_stride, (y - H) * fine_stride, 0.0f));
 
 	feature.process(gray, 0.0f);
-    N = 0;
-    fine_train(warp);
+	N = 0;
+	fine_train(warp);
 	fast_train(warp);
 	fine_errors.push_back(0.0f);
 	roll = yaw = pitch = 0.0f;
@@ -427,74 +479,71 @@ far_rect_t FARTracker::track(const unsigned char *gray)
 		(*log) << "pitch = " << pitch * 90.0f / PI_2 << endl;
 	}	
 	feature.process(gray, roll);
-	vector<Vector3f> candidates;
-	candidates.push_back(warp.t);
-	candidates.push_back(fast_test(warp));
-	
-	Warp best_warp(image_width, image_height);
-	float best_error = 1.0f;
-	for (auto& t : candidates) {
+
+	Warp w = warp;
+	if (log != NULL)
+		(*log) << "track at " << w.t.transpose() << " " << window(w.t) << endl;
+	w = fine_test(w);
+	float e = evaluate(w);
+	if (e > threshold_error) {
+		Warp w2 = warp;		
+		w2.sett(fast_test(warp));
 		if (log != NULL)
-			(*log) << "track at " << t.transpose() << " " << window(t) << endl;
-		Warp w(image_width, image_height);		
-		w.setr(warp.r);
-		w.sett(t);
-		w = fine_test(w);
-		float e = evaluate(w);
-		if (log != NULL) {
-			(*log) << "final translation = " << w.t.transpose() << " " << window(w.t) << endl;
-			(*log) << "final rotation = " << w.r.transpose() << endl;
-			(*log) << "final error = " << e << endl;
+			(*log) << "search at " << w2.t.transpose() << " " << window(w2.t) << endl;
+		w2 = fine_test(w2);
+		float e2 = evaluate(w2);
+		if (e2 < e) {
+			w = w2;
+			e = e2;
 		}
-		if (e < best_error) {
-			best_warp = w;
-			best_error = e;
-		}
-	}	
-
-	fine_errors.push_back(best_error);
-	if (best_error < threshold_error) {		
-		warp = best_warp;
-		warp.euler(roll, yaw, pitch);
-		fine_train(warp);
 	}
-	else 		
-		warp.t = best_warp.t * (warp.t.z() / best_warp.t.z());	
-	fast_train(warp);
+	update(w, e);
 
-	return window(best_warp.t);
+	return window(w.t);
 }
 
-far_rect_t FARTracker::restart(const unsigned char *gray, far_rect_t rect)
-{	
-	roll = yaw = pitch = 0.0f;
-	feature.process(gray, roll);
-
-	if (log != NULL)
-		(*log) << "restart at " << locate(rect).transpose() << " " << rect << endl;
-	Warp w(image_width, image_height);
-	w.sett(locate(rect));
-	w = fine_test(w);
-	float e = evaluate(w);	
+far_rect_t FARTracker::retrack(const unsigned char *gray, const vector<far_rect_t> &detections)
+{
 	if (log != NULL) {
-		(*log) << "final translation = " << w.t.transpose() << " " << window(w.t) << endl;
-		(*log) << "final rotation = " << w.r.transpose() << endl;
-		(*log) << "final error = " << e << endl;
+		(*log) << "roll = " << roll * 90.0f / PI_2 << endl;
+		(*log) << "yaw = " << yaw * 90.0f / PI_2 << endl;
+		(*log) << "pitch = " << pitch * 90.0f / PI_2 << endl;
 	}
-	Warp best_warp = w;
-	float best_error = e;
+	feature.process(gray, 0.0f);
 
-	fine_errors.push_back(best_error);
-	if (best_error < threshold_error) {
-		warp = best_warp;
-		warp.euler(roll, yaw, pitch);
-		fine_train(warp);
+	Warp w = warp;
+	w.setr(Vector3f(0.0f, 0.0f, 0.0f));
+	if (log != NULL)
+		(*log) << "track at " << w.t.transpose() << " " << window(w.t) << endl;
+	w = fine_test(w);
+	float e = evaluate(w);
+	Warp w2 = warp;
+	w2.setr(Vector3f(0.0f, 0.0f, 0.0f));
+	w2.sett(fast_test(warp));
+	if (log != NULL)
+		(*log) << "search at " << w2.t.transpose() << " " << window(w2.t) << endl;
+	w2 = fine_test(w2);
+	float e2 = evaluate(w2);
+	if (e2 < e) {
+		w = w2;
+		e = e2;
 	}
-	else
-		warp.t = best_warp.t * (warp.t.z() / best_warp.t.z());
-	fast_train(warp);
+	for (auto d : detections) {
+		Warp w3 = warp;
+		w3.setr(Vector3f(0.0f, 0.0f, 0.0f));
+		w3.sett(locate(d));
+		if (log != NULL)
+			(*log) << "detect at " << w3.t.transpose() << " " << window(w3.t) << endl;
+		w3 = fine_test(w3);
+		float e3 = evaluate(w3);
+		if (e3 < e) {
+			w = w3;
+			e = e3;
+		}
+	}	 	
+	update(w, e);
 
-	return window(best_warp.t);
+	return window(w.t);
 }
 
 bool FARTracker::check()
@@ -502,11 +551,11 @@ bool FARTracker::check()
 	auto iter = fine_errors.rbegin();
 	int n = 0;
 	float s = 0.0f;
-	while (n < 10 && iter != fine_errors.rend()) {		
+	while (n < 10 && iter != fine_errors.rend()) {
 		s += *iter;
 		++iter;
 		++n;
-	}	
+	}
 	return s / n < threshold_error;
 }
 
@@ -531,6 +580,24 @@ far_rect_t FARTracker::window(Vector3f translate)
 	return ret;
 }
 
+void FARTracker::update(Warp w, float e)
+{
+	if (log != NULL) {
+		(*log) << "final translation = " << w.t.transpose() << " " << window(w.t) << endl;
+		(*log) << "final rotation = " << w.r.transpose() << endl;
+		(*log) << "final error = " << e << endl;
+	}
+	fine_errors.push_back(e);
+	if (e < threshold_error) {
+		warp = w;
+		warp.euler(roll, yaw, pitch);
+		fine_train(warp);
+	}
+	else
+		warp.t = w.t * (warp.t.z() / w.t.z());
+	fast_train(warp);
+}
+
 void FARTracker::fast_train(Warp warp)
 {
 	far_rect_t rect = window(warp.t);
@@ -552,7 +619,7 @@ void FARTracker::fast_train(Warp warp)
 	for (int i = 0; i < fast_samples.size(); ++i) {
 		int tx = x + fast_samples[i].x();
 		int ty = y + fast_samples[i].y();
-		fast_model.col(i) = feature.cell_hist(tx, ty);		
+		fast_model.col(i) = Map<Vector8f>(feature.cell_hist(tx, ty));		
 	}
 }
 
@@ -563,10 +630,10 @@ void FARTracker::fine_train(Warp warp)
 	feature.set_cell(fine_cell);
 	feature.set_step(1);
 
-	MatrixXf model(32, fine_samples.size());	
+	MatrixXf model(32, fine_samples.size());
 	for (int i = 0; i < fine_samples.size(); ++i) {
 		Vector2f p = warp.transform2(fine_samples[i]);
-		feature.descriptor4(p.x(), p.y(), model.col(i));
+		feature.descriptor4(p.x(), p.y(), model.col(i).data());
 	}
 	if (N == 0) {
 		N = 1;
@@ -600,11 +667,10 @@ Vector3f FARTracker::fast_test(Warp warp)
 		float S = 0.0f, score = 0.0f;
 		for (int i = 0; i < fast_samples.size(); ++i) {
 			int tx = x + fast_samples[i].x();
-			int ty = y + fast_samples[i].y();
-			Ref<Vector8f> f = fast_model.col(i);
-			Ref<Vector8f> g = feature.cell_hist(tx, ty);
+			int ty = y + fast_samples[i].y();			
+			Map<Vector8f> g(feature.cell_hist(tx, ty));
 			S += g.squaredNorm();
-			score += f.dot(g);
+			score += fast_model.col(i).dot(g);
 		}
 		score *= S < 1.0f ? 0.0f : 1.0f / sqrt(S);
 		if (score > best_score) {
@@ -640,33 +706,33 @@ float FARTracker::sigmoid(float x)
 }
 
 Warp FARTracker::Lucas_Kanade(Warp warp)
-{	
+{
+	float last_E = 1.0f;
 	for (int iter = 0; iter < max_iteration; ++iter) {
-		Matrix<float, 6, 1> G;
-		Matrix<float, 6, 6> H;
-		G.setConstant(0.0f);
-		H.setConstant(0.0f);		
+		Matrix<float, 6, 1> G = Matrix<float, 6, 1>::Constant(0.0f);
+		Matrix<float, 6, 6> H = Matrix<float, 6, 6>::Constant(0.0f);
 		float E = 0.0f;
 		for (int i = 0; i < fine_samples.size(); ++i) {
-			Vector32f T(fine_model.col(i)), F;
-			Matrix<float, 32, 2> dF;
 			Matrix<float, 2, 6> dW = warp.gradient(fine_samples[i]);
 			Vector2f p = warp.transform2(fine_samples[i]);
-			feature.gradient4(p.x(), p.y(), F, dF.col(0), dF.col(1));	
-			T -= F;
-			float e = sigmoid(T.dot(T));
+			Vector32f F;
+			Matrix<float, 32, 2> dF;
+			feature.gradient4(p.x(), p.y(), F.data(), dF.col(0).data(), dF.col(1).data());
+			F -= fine_model.col(i);
+			float e = sigmoid(F.squaredNorm());
+			float w = sigmoid_factor * e * (1.0f - e);			
+			G += -w * (dW.transpose() * (dF.transpose() * F));
+			H += w * (dW.transpose() * (dF.transpose() * dF) * dW);			
 			E += e;
-			float w = sigmoid_factor * e * (1.0f - e);
-			G += w * ((T.transpose() * dF) * dW).transpose();			
-			H += w * (dW.transpose() * (dF.transpose() * dF) * dW);
-		}
-		E = E / fine_samples.size();		
-		Matrix<float, 6, 1> D = H.colPivHouseholderQr().solve(G);
+		}		
+		E = E / fine_samples.size();
+		Matrix<float, 6, 1> D = H.fullPivHouseholderQr().solve(G);
 		warp.steepest(D);
 		if (log != NULL)
 			(*log) << E << " ";
-		if (iter > 1 && D(3) * D(3) + D(4) * D(4) + D(5) * D(5) < translate_eps) 			
+		if (iter > 1 && D.segment<3>(3).squaredNorm() < translate_eps && last_E - E < error_eps)
 			break;
+		last_E = E;
 	}
 	if (log != NULL)
 		(*log) << endl;
@@ -681,12 +747,11 @@ float FARTracker::evaluate(Warp warp)
 	feature.set_step(1);
 
 	float E = 0.0f;
-	for (int i = 0; i < fine_samples.size(); ++i) {
-		Vector32f T(fine_model.col(i)), I;
+	for (int i = 0; i < fine_samples.size(); ++i) {		
 		Vector2f p = warp.transform2(fine_samples[i]);
-		feature.descriptor4(p.x(), p.y(), I);
-		T -= I;
-		E = E + sigmoid(T.dot(T));
+		Vector32f F;
+		feature.descriptor4(p.x(), p.y(), F.data());		
+		E = E + sigmoid((F - fine_model.col(i)).squaredNorm());
 	}
 	return E / fine_samples.size();
 }

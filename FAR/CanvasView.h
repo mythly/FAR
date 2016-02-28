@@ -8,6 +8,6 @@
 
 @interface CanvasView : UIView
 
-@property (nonatomic , strong) NSString *strFace ;
+@property (nonatomic , strong) NSString *strFace, *strLeftEye, *strRightEye, *strMouse ;
 
 @end
