@@ -11,6 +11,7 @@
 #import <ImageIO/ImageIO.h>
 #import "CanvasView.h"
 #import "fartracker.h"
+#import "time.h"
 
 typedef struct face_t {
     far_rect_t rect;
@@ -36,6 +37,8 @@ typedef struct face_t {
 
 @property (nonatomic) int last_detect;
 
+@property (nonatomic) NSMutableArray* clock_queue;
+
 @end
 
 @implementation ViewController
@@ -48,6 +51,7 @@ typedef struct face_t {
     
     self.tracker = NULL;
     self.last_detect = 0;
+    self.clock_queue = [[NSMutableArray alloc] init];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -132,27 +136,6 @@ typedef struct face_t {
     for (int i = 0; i < iHeight * iWidth; ++i)
         gray[i] = 0.299f * baseAddress[i * 4 + 2] + 0.587f * baseAddress[i * 4 + 1] + 0.114f * baseAddress[i * 4];
     
-    /*
-    NSData *data = [NSData dataWithBytes:gray length:iWidth * iHeight];
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceGray();
-    CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)data);
-    CGImageRef imageRef = CGImageCreate(iWidth,                                 //width
-                                        iHeight,                                 //height
-                                        8,                                          //bits per component
-                                        8,                       //bits per pixel
-                                        iWidth,                            //bytesPerRow
-                                        colorSpace,                                 //colorspace
-                                        kCGImageAlphaNone|kCGBitmapByteOrderDefault,// bitmap info
-                                        provider,                                   //CGDataProviderRef
-                                        NULL,                                       //decode
-                                        false,                                      //should interpolate
-                                        kCGRenderingIntentDefault                   //intent
-                                        );
-    UIImage *finalImage = [UIImage imageWithCGImage:imageRef];
-    CGImageRelease(imageRef);
-    CGDataProviderRelease(provider);
-    CGColorSpaceRelease(colorSpace);
-     */
     face_t face;
     float l = (iWidth < iHeight ? iWidth : iHeight) * 0.25f;
     face.rect.x = iWidth * 0.5f - l * 0.5f;
@@ -187,9 +170,11 @@ typedef struct face_t {
             float right_eye_y = iHeight - f.rightEyePosition.y - 1;
             float mouse_x = f.mouthPosition.x;
             float mouse_y = iHeight - f.mouthPosition.y - 1;
-            float dx = 2 * mouse_x - left_eye_x - right_eye_x;
+            float dx = 2 * f.bounds.origin.x + f.bounds.size.width - left_eye_x - right_eye_x;
             float dy = left_eye_y - right_eye_y;
-            if (dx * dx + dy * dy > (f.bounds.size.height * f.bounds.size.width) / 10)
+            float dz = mouse_x - (f.bounds.origin.x + f.bounds.size.width * 0.5f);
+            NSLog(@"%.1f %.1f %.1f", dx, dy, dz);
+            if (dx * dx + dy * dy + dz * dz > (f.bounds.size.height * f.bounds.size.width) / 100)
                 continue;
             far_rects[n].x = f.bounds.origin.x;
             far_rects[n].y = iHeight - f.bounds.origin.y - f.bounds.size.height;
@@ -228,30 +213,39 @@ typedef struct face_t {
             NSLog(@"track nothing");
         --self.last_detect;
     }
+    float fps = 0.0f, error = 0.0f, roll = 0.0f, yaw = 0.0f, pitch = 0.0f;
     if (self.tracker != NULL) {
         far_transform(self.tracker, self.start_face.rect, &face.left_eye_x, &face.left_eye_y);
         far_transform(self.tracker, self.start_face.rect, &face.right_eye_x, &face.right_eye_y);
         far_transform(self.tracker, self.start_face.rect, &face.mouse_x, &face.mouse_y);
+        far_info(self.tracker, &error, &roll, &yaw, &pitch);
+        clock_t c = clock();
+        while ([self.clock_queue count] > 0 && c - [[self.clock_queue objectAtIndex:0] unsignedLongValue] > CLOCKS_PER_SEC)
+            [self.clock_queue removeObjectAtIndex:0];
+        [self.clock_queue addObject:[NSNumber numberWithUnsignedLong:c]];
+        NSLog(@"%lu %lu %lu", c, [[self.clock_queue objectAtIndex:0] unsignedLongValue], (unsigned long)[self.clock_queue count]);
+        fps = (float)CLOCKS_PER_SEC / (float)(c - [[self.clock_queue objectAtIndex:0] unsignedLongValue]) * (float)[self.clock_queue count];
     }
-
     CGRect rectFace = CGRectMake(face.rect.y, face.rect.x, face.rect.height, face.rect.width);
     CGPoint pointLeftEye = CGPointMake(face.left_eye_y, face.left_eye_x);
     CGPoint pointRightEye = CGPointMake(face.right_eye_y, face.right_eye_x);
     CGPoint pointMouse = CGPointMake(face.mouse_y, face.mouse_x);
+    NSString* info = [NSString stringWithFormat:@"fps: %.1f\nerror: %.2f\nroll: %.0f\nyaw: %.0f\npitch: %.0f\n", fps, error, roll, yaw, pitch];
     dispatch_async(dispatch_get_main_queue(), ^{
-        [self showFace:rectFace leftEye:pointLeftEye rightEye:pointRightEye mouse:pointMouse];
+        [self showFace:rectFace leftEye:pointLeftEye rightEye:pointRightEye mouse:pointMouse info:info];
     } ) ;
     
     free(gray);
     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
 }
 
-- (void) showFace:(CGRect)face leftEye:(CGPoint)leftEye rightEye:(CGPoint)rightEye mouse:(CGPoint)mouse
+- (void) showFace:(CGRect)face leftEye:(CGPoint)leftEye rightEye:(CGPoint)rightEye mouse:(CGPoint)mouse info:(NSString*)info
 {
     self.viewCanvas.strFace = NSStringFromCGRect(face);
     self.viewCanvas.strLeftEye = NSStringFromCGPoint(leftEye);
     self.viewCanvas.strRightEye = NSStringFromCGPoint(rightEye);
     self.viewCanvas.strMouse = NSStringFromCGPoint(mouse);
+    self.viewCanvas.strInfo = info;
     [self.viewCanvas setNeedsDisplay] ;
 }
 

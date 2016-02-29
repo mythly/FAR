@@ -19,7 +19,8 @@ extern "C" {
 	far_tracker_t far_init(const unsigned char *gray, int width, int height, far_rect_t rect);
 	far_rect_t far_track(far_tracker_t tracker, const unsigned char *gray);
 	far_rect_t far_retrack(far_tracker_t tracker, const unsigned char *gray, const far_rect_t rects[], int n_rects);
-    void far_transform(far_tracker_t tracker, far_rect_t start_rect, float *x, float *y);
+	void far_transform(far_tracker_t tracker, far_rect_t start_rect, float *x, float *y);
+    void far_info(far_tracker_t tracker, float *error, float *roll, float *yaw, float *pitch);
 	bool far_check(far_tracker_t tracker);
 	void far_release(far_tracker_t tracker);
 
@@ -62,7 +63,6 @@ typedef Matrix<float, 32, 1> Vector32f;
 
 float rectArea(far_rect_t rect);
 float rectOverlap(far_rect_t a, far_rect_t b);
-far_rect_t rectBound(far_rect_t rect);
 ostream& operator<<(ostream& cout, const far_rect_t &rect);
 
 template<typename T, int channels>
@@ -166,7 +166,7 @@ public:
 	Vector3f transform(Vector3f p);
 	Vector2f transform2(Vector3f p);
 
-	Matrix<float, 2, 6> gradient(Vector3f p);
+	inline Vector2f gradient(Vector3f p, Matrix<float, 2, 6> &dW);
 	void steepest(Matrix<float, 6, 1> parameters);
 	void euler(float &roll, float &yaw, float &pitch);
 
@@ -198,7 +198,9 @@ private:
 	Vector3f fast_test(Warp w);
 	Warp fine_test(Warp w);
 
-	float sigmoid(float x);
+	inline float sigmoid(float x);
+	inline void hessian(Matrix<float, 6, 6> &H, float w, const Matrix<float, 2, 6> &dW, const Matrix<float, 32, 2> &dF);
+
 	Warp Lucas_Kanade(Warp w);
 	float evaluate(Warp w);
 

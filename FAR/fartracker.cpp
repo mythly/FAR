@@ -4,7 +4,7 @@
 
 far_tracker_t far_init(const unsigned char *gray, int width, int height, far_rect_t rect)
 {
-    return new FARTracker(gray, width, height, rect, NULL);//&cerr);
+	return new FARTracker(gray, width, height, rect, &cerr);
 }
 
 far_rect_t far_track(far_tracker_t tracker, const unsigned char *gray)
@@ -23,13 +23,25 @@ far_rect_t far_retrack(far_tracker_t tracker, const unsigned char *gray, const f
 
 void far_transform(far_tracker_t tracker, far_rect_t start_rect, float *x, float *y)
 {
+	assert(tracker != NULL);
+	FARTracker *t = static_cast<FARTracker*>(tracker);
+	assert(x != NULL && y != NULL);
+	Vector3f p3(*x - (start_rect.x + start_rect.width * 0.5f), *y - (start_rect.y + start_rect.height * 0.5f), 0.0f);
+	Vector2f p2 = t->warp.transform2(p3);
+	*x = p2.x();
+	*y = p2.y();
+}
+
+void far_info(far_tracker_t tracker, float *error, float *roll, float *yaw, float *pitch)
+{
     assert(tracker != NULL);
     FARTracker *t = static_cast<FARTracker*>(tracker);
-    assert(x != NULL && y != NULL);
-    Vector3f p3(*x - (start_rect.x + start_rect.width * 0.5f), *y - (start_rect.y + start_rect.height * 0.5f), 0.0f);
-    Vector2f p2 = t->warp.transform2(p3);
-    *x = p2.x();
-    *y = p2.y();
+    assert(error != NULL && roll != NULL && yaw != NULL && pitch != NULL);
+    *error = t->fine_errors.back();
+    t->warp.euler(*roll, *yaw, *pitch);
+    *roll *= 90.0f / PI_2;
+    *yaw *= 90.0f / PI_2;
+    *pitch *= 90.0f / PI_2;
 }
 
 bool far_check(far_tracker_t tracker)
@@ -66,15 +78,6 @@ float rectOverlap(far_rect_t a, far_rect_t b)
 	float rx = min(a.x + a.width, b.x + b.width);
 	float ry = min(a.y + a.height, b.y + b.height);
 	return max(rx - lx, 0.0f) * max(ry - ly, 0.0f);
-}
-
-far_rect_t rectBound(far_rect_t rect)
-{
-	rect.width = ceil(rect.x + rect.width) - floor(rect.x);
-	rect.x = floor(rect.x);
-	rect.height = ceil(rect.y + rect.height) - floor(rect.y);
-	rect.y = floor(rect.y);
-	return rect;
 }
 
 ostream& operator<<(ostream& cout, const far_rect_t&rect)
@@ -410,16 +413,19 @@ Vector2f Warp::transform2(Vector3f p)
 	return project(transform(p));
 }
 
-Matrix<float, 2, 6> Warp::gradient(Vector3f p)
+Vector2f Warp::gradient(Vector3f p, Matrix<float, 2, 6> &dW)
 {
-	Matrix3f D1 = p.x() * Dx + p.y() * Dy + p.z() * Dz;
-	Vector3f tp = transform(p);
-	Matrix<float, 2, 3> D2;	
-	D2 << f / tp.z(), 0.0f, -f * tp.x() / (tp.z() * tp.z()),
-		0.0f, f / tp.z(), -f * tp.y() / (tp.z() * tp.z());	
-	Matrix<float, 2, 6> G;
-	G << D2 * D1, D2;
-	return G;
+	Matrix3f D1 = p.x() * Dx + p.y() * Dy + p.z() * Dz;	
+	Vector3f tp = transform(p);		
+	float fz = f / tp.z(), fzz = f / (tp.z() * tp.z());
+	dW(0, 3) = fz;
+	dW(0, 4) = 0.0f;
+	dW(0, 5) = -tp.x() * fzz;
+	dW(1, 3) = 0.0f;
+	dW(1, 4) = fz;
+	dW(1, 5) = -tp.y() * fzz;
+	dW.leftCols(3).noalias() = dW.rightCols(3) * D1;
+	return project(tp);
 }
 
 void Warp::steepest(Matrix<float, 6, 1> parameters)
@@ -463,7 +469,7 @@ log(os)
 	for (int x = 0; x <= 2 * W; ++x)
 		fine_samples.push_back(Vector3f((x - W) * fine_stride, (y - H) * fine_stride, 0.0f));
 
-	feature.process(gray, 0.0f);
+	feature.process(gray, 0.0f); 
 	N = 0;
 	fine_train(warp);
 	fast_train(warp);
@@ -619,7 +625,7 @@ void FARTracker::fast_train(Warp warp)
 	for (int i = 0; i < fast_samples.size(); ++i) {
 		int tx = x + fast_samples[i].x();
 		int ty = y + fast_samples[i].y();
-		fast_model.col(i) = Map<Vector8f>(feature.cell_hist(tx, ty));		
+		memcpy(fast_model.col(i).data(), feature.cell_hist(tx, ty), 8 * sizeof(float));		
 	}
 }
 
@@ -662,17 +668,16 @@ Vector3f FARTracker::fast_test(Warp warp)
 
 	float best_score = 0.0f;
 	Vector3f best_translate = warp.t;
+	MatrixXf model(8, fast_samples.size());
 	for (int y = miny; y <= maxy; y += fast_step)
-	for (int x = minx; x <= maxx; x += fast_step) {
-		float S = 0.0f, score = 0.0f;
+	for (int x = minx; x <= maxx; x += fast_step) {		
 		for (int i = 0; i < fast_samples.size(); ++i) {
 			int tx = x + fast_samples[i].x();
-			int ty = y + fast_samples[i].y();			
-			Map<Vector8f> g(feature.cell_hist(tx, ty));
-			S += g.squaredNorm();
-			score += fast_model.col(i).dot(g);
+			int ty = y + fast_samples[i].y();
+			memcpy(model.col(i).data(), feature.cell_hist(tx, ty), 8 * sizeof(float));
 		}
-		score *= S < 1.0f ? 0.0f : 1.0f / sqrt(S);
+		float S = model.squaredNorm();
+		float score = S < 1.0f ? 0.0f : model.cwiseProduct(fast_model).sum() / sqrt(S);		
 		if (score > best_score) {
 			far_rect_t best_rect = rect;
 			best_rect.x = float(x);
@@ -705,6 +710,46 @@ float FARTracker::sigmoid(float x)
 	return 1.0f / (1.0f + exp(-sigmoid_factor * (x - sigmoid_bias)));
 }
 
+void FARTracker::hessian(Matrix<float, 6, 6> &H, float w, const Matrix<float, 2, 6> &dW, const Matrix<float, 32, 2> &dF)
+{
+	float F00 = w * dF.col(0).squaredNorm();
+	float F11 = w * dF.col(1).squaredNorm();
+	float F01 = w * dF.col(0).dot(dF.col(1));
+	float x0 = dW(0, 0) * F00 + dW(1, 0) * F01;
+	float y0 = dW(0, 0) * F01 + dW(1, 0) * F11;
+	H(0, 0) += x0 * dW(0, 0) + y0 * dW(1, 0);
+	H(0, 1) += x0 * dW(0, 1) + y0 * dW(1, 1);
+	H(0, 2) += x0 * dW(0, 2) + y0 * dW(1, 2);
+	H(0, 3) += x0 * dW(0, 3) + y0 * dW(1, 3);
+	H(0, 4) += x0 * dW(0, 4) + y0 * dW(1, 4);
+	H(0, 5) += x0 * dW(0, 5) + y0 * dW(1, 5);
+	float x1 = dW(0, 1) * F00 + dW(1, 1) * F01;
+	float y1 = dW(0, 1) * F01 + dW(1, 1) * F11;
+	H(1, 1) += x1 * dW(0, 1) + y1 * dW(1, 1);
+	H(1, 2) += x1 * dW(0, 2) + y1 * dW(1, 2);
+	H(1, 3) += x1 * dW(0, 3) + y1 * dW(1, 3);
+	H(1, 4) += x1 * dW(0, 4) + y1 * dW(1, 4);
+	H(1, 5) += x1 * dW(0, 5) + y1 * dW(1, 5);
+	float x2 = dW(0, 2) * F00 + dW(1, 2) * F01;
+	float y2 = dW(0, 2) * F01 + dW(1, 2) * F11;
+	H(2, 2) += x2 * dW(0, 2) + y2 * dW(1, 2);
+	H(2, 3) += x2 * dW(0, 3) + y2 * dW(1, 3);
+	H(2, 4) += x2 * dW(0, 4) + y2 * dW(1, 4);
+	H(2, 5) += x2 * dW(0, 5) + y2 * dW(1, 5);
+	float x3 = dW(0, 3) * F00 + dW(1, 3) * F01;
+	float y3 = dW(0, 3) * F01 + dW(1, 3) * F11;
+	H(3, 3) += x3 * dW(0, 3) + y3 * dW(1, 3);
+	H(3, 4) += x3 * dW(0, 4) + y3 * dW(1, 4);
+	H(3, 5) += x3 * dW(0, 5) + y3 * dW(1, 5);
+	float x4 = dW(0, 4) * F00 + dW(1, 4) * F01;
+	float y4 = dW(0, 4) * F01 + dW(1, 4) * F11;
+	H(4, 4) += x4 * dW(0, 4) + y4 * dW(1, 4);
+	H(4, 5) += x4 * dW(0, 5) + y4 * dW(1, 5);
+	float x5 = dW(0, 5) * F00 + dW(1, 5) * F01;
+	float y5 = dW(0, 5) * F01 + dW(1, 5) * F11;
+	H(5, 5) += x5 * dW(0, 5) + y5 * dW(1, 5);
+}
+
 Warp FARTracker::Lucas_Kanade(Warp warp)
 {
 	float last_E = 1.0f;
@@ -713,19 +758,21 @@ Warp FARTracker::Lucas_Kanade(Warp warp)
 		Matrix<float, 6, 6> H = Matrix<float, 6, 6>::Constant(0.0f);
 		float E = 0.0f;
 		for (int i = 0; i < fine_samples.size(); ++i) {
-			Matrix<float, 2, 6> dW = warp.gradient(fine_samples[i]);
-			Vector2f p = warp.transform2(fine_samples[i]);
+			Matrix<float, 2, 6> dW;
+			Vector2f p = warp.gradient(fine_samples[i], dW);			 
 			Vector32f F;
 			Matrix<float, 32, 2> dF;
 			feature.gradient4(p.x(), p.y(), F.data(), dF.col(0).data(), dF.col(1).data());
 			F -= fine_model.col(i);
 			float e = sigmoid(F.squaredNorm());
 			float w = sigmoid_factor * e * (1.0f - e);			
-			G += -w * (dW.transpose() * (dF.transpose() * F));
-			H += w * (dW.transpose() * (dF.transpose() * dF) * dW);			
+			G += w * (dW.transpose() * (dF.transpose() * -F));
+			//H.triangularView<Upper> += w * (dW.transpose() * (dF.transpose() * dF) * dW);
+			hessian(H, w, dW, dF);
 			E += e;
-		}		
+		}
 		E = E / fine_samples.size();
+		H.triangularView<Lower>() = H.transpose();
 		Matrix<float, 6, 1> D = H.fullPivHouseholderQr().solve(G);
 		warp.steepest(D);
 		if (log != NULL)
