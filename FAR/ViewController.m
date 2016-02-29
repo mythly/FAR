@@ -35,7 +35,7 @@ typedef struct face_t {
 
 @property (nonatomic) face_t start_face;
 
-@property (nonatomic) int last_detect;
+@property (nonatomic) int last_detect, count_detect;
 
 @property (nonatomic) NSMutableArray* clock_queue;
 
@@ -50,7 +50,7 @@ typedef struct face_t {
     self.view.backgroundColor = [UIColor blackColor] ;
     
     self.tracker = NULL;
-    self.last_detect = 0;
+    self.last_detect = self.count_detect = 0;
     self.clock_queue = [[NSMutableArray alloc] init];
 }
 
@@ -92,13 +92,12 @@ typedef struct face_t {
     NSArray *devices = [AVCaptureDevice devices];
     for (AVCaptureDevice *device in devices) {
         if ([device hasMediaType:AVMediaTypeVideo]) {
-            
             if ([device position] == AVCaptureDevicePositionFront) {
                 deviceFront = device;
             }
         }
     }
-    
+
     NSError *error = nil;
     AVCaptureDeviceInput *input = [AVCaptureDeviceInput deviceInputWithDevice:deviceFront error:&error];
     if (!input) {
@@ -158,6 +157,7 @@ typedef struct face_t {
         opts = @{ CIDetectorImageOrientation : [NSNumber numberWithInt:1]};
         NSArray *features = [detector featuresInImage:ciImage options:opts];
         self.last_detect = 30;
+        ++self.count_detect;
         far_rect_t *far_rects = malloc([features count] * sizeof(far_rect_t));
         face_t *faces = malloc([features count] * sizeof(face_t));
         int n = 0;
@@ -190,19 +190,24 @@ typedef struct face_t {
             ++n;
         }
         if (n > 0) {
-            if (self.tracker == NULL) {
+            if (self.tracker != NULL) {
+                NSLog(@"re track at");
+                for (int i = 0; i < n; ++i)
+                    NSLog(@"\t[(%.0f,%.0f) %.0fx%.0f]", far_rects[i].x, far_rects[i].y, far_rects[i].width, far_rects[i].height);
+            }else {
                 face = faces[0];
                 self.tracker = far_init(gray, iWidth, iHeight, face.rect);
                 self.start_face = face;
                 NSLog(@"start track at [(%.0f,%.0f) %.0fx%.0f]", face.rect.x, face.rect.y, face.rect.width, face.rect.height);
-            }else {
-                NSLog(@"re track at");
-                for (int i = 0; i < n; ++i)
-                    NSLog(@"\t[(%.0f,%.0f) %.0fx%.0f]", far_rects[i].x, far_rects[i].y, far_rects[i].width, far_rects[i].height);
                 face.rect = far_retrack(self.tracker, gray, far_rects, n);
             }
-        }else
-            NSLog(@"detect nothing");
+        }else {
+            if (self.tracker != NULL) {
+                face.rect = far_track(self.tracker, gray);
+                NSLog(@"track at [(%.0f,%.0f) %.0fx%.0f]", face.rect.x, face.rect.y, face.rect.width, face.rect.height);
+            }else
+                NSLog(@"detect nothing");
+        }
         free(far_rects);
         free(faces);
     }else {
@@ -223,25 +228,26 @@ typedef struct face_t {
         while ([self.clock_queue count] > 0 && c - [[self.clock_queue objectAtIndex:0] unsignedLongValue] > CLOCKS_PER_SEC)
             [self.clock_queue removeObjectAtIndex:0];
         [self.clock_queue addObject:[NSNumber numberWithUnsignedLong:c]];
-        NSLog(@"%lu %lu %lu", c, [[self.clock_queue objectAtIndex:0] unsignedLongValue], (unsigned long)[self.clock_queue count]);
         fps = (float)CLOCKS_PER_SEC / (float)(c - [[self.clock_queue objectAtIndex:0] unsignedLongValue]) * (float)[self.clock_queue count];
     }
     CGRect rectFace = CGRectMake(face.rect.y, face.rect.x, face.rect.height, face.rect.width);
+    float angleRotation = roll;
     CGPoint pointLeftEye = CGPointMake(face.left_eye_y, face.left_eye_x);
     CGPoint pointRightEye = CGPointMake(face.right_eye_y, face.right_eye_x);
     CGPoint pointMouse = CGPointMake(face.mouse_y, face.mouse_x);
-    NSString* info = [NSString stringWithFormat:@"fps: %.1f\nerror: %.2f\nroll: %.0f\nyaw: %.0f\npitch: %.0f\n", fps, error, roll, yaw, pitch];
+    NSString* info = [NSString stringWithFormat:@"fps: %.1f\ndetection: %d\nerror: %.2f\nroll: %.0f\nyaw: %.0f\npitch: %.0f\n", fps, self.count_detect, error, roll, yaw, pitch];
     dispatch_async(dispatch_get_main_queue(), ^{
-        [self showFace:rectFace leftEye:pointLeftEye rightEye:pointRightEye mouse:pointMouse info:info];
+        [self showFace:rectFace rotation:angleRotation leftEye:pointLeftEye rightEye:pointRightEye mouse:pointMouse info:info];
     } ) ;
     
     free(gray);
     CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
 }
 
-- (void) showFace:(CGRect)face leftEye:(CGPoint)leftEye rightEye:(CGPoint)rightEye mouse:(CGPoint)mouse info:(NSString*)info
+- (void) showFace:(CGRect)face rotation:(float)rotation leftEye:(CGPoint)leftEye rightEye:(CGPoint)rightEye mouse:(CGPoint)mouse info:(NSString*)info
 {
     self.viewCanvas.strFace = NSStringFromCGRect(face);
+    self.viewCanvas.strRotation = [NSString stringWithFormat:@"%.7f", rotation];
     self.viewCanvas.strLeftEye = NSStringFromCGPoint(leftEye);
     self.viewCanvas.strRightEye = NSStringFromCGPoint(rightEye);
     self.viewCanvas.strMouse = NSStringFromCGPoint(mouse);

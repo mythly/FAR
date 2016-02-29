@@ -20,7 +20,7 @@ extern "C" {
 	far_rect_t far_track(far_tracker_t tracker, const unsigned char *gray);
 	far_rect_t far_retrack(far_tracker_t tracker, const unsigned char *gray, const far_rect_t rects[], int n_rects);
 	void far_transform(far_tracker_t tracker, far_rect_t start_rect, float *x, float *y);
-    void far_info(far_tracker_t tracker, float *error, float *roll, float *yaw, float *pitch);
+	void far_info(far_tracker_t tracker, float *error, float *roll, float *yaw, float *pitch);
 	bool far_check(far_tracker_t tracker);
 	void far_release(far_tracker_t tracker);
 
@@ -34,6 +34,7 @@ extern "C" {
 
 #include <iostream>
 #include <vector>
+#include <queue>
 #include <cmath>
 #include <cstring>
 #include <cfloat>
@@ -85,7 +86,7 @@ public:
 	}
 
 	void set(T val)
-	{		
+	{
 		for (int i = 0; i < step2; ++i)
 			_data[i] = val;
 	}
@@ -119,7 +120,7 @@ public:
 	{
 		return _data[row * step1 + col * step0 + channel];
 	}
-	
+
 public:
 	int rows, cols;
 	int step0, step1, step2;
@@ -146,12 +147,12 @@ public:
 
 public:
 	float A, X[4], Y[4];
-	int W, H, C, step;	
+	int W, H, C, step;
 
 private:
 	Data<float, 1> img;
 	Data<int, 1> flag;
-	Data<float, 8> sum, hist, zero;	
+	Data<float, 8> sum, hist, zero;
 };
 
 class Warp
@@ -191,13 +192,13 @@ public:
 private:
 	Vector3f locate(far_rect_t rect);
 	far_rect_t window(Vector3f translate);
-	
+
 	void update(Warp w, float e);
 	void fast_train(Warp w);
 	void fine_train(Warp w);
 	Vector3f fast_test(Warp w);
 	Warp fine_test(Warp w);
-
+	
 	inline float sigmoid(float x);
 	inline void hessian(Matrix<float, 6, 6> &H, float w, const Matrix<float, 2, 6> &dW, const Matrix<float, 32, 2> &dF);
 
@@ -208,14 +209,14 @@ public:
 	int image_width, image_height;
 	float window_width, window_height;
 	Warp warp;
-	float roll, yaw, pitch;
-	vector<float> fine_errors;
+	float error, roll, yaw, pitch;	
 
 private:
 	Surf feature;
 	vector<Vector2i> fast_samples;
-	vector<Vector3f> fine_samples;
-	MatrixXf fast_model, fine_model;
+	vector<Vector3f> fine_samples;		
+	MatrixXf fast_model, fine_model;	
+	deque<float> fine_errors;
 	ostream *log;
 	int N;
 };
