@@ -170,12 +170,13 @@ typedef struct face_t {
             float right_eye_y = iHeight - f.rightEyePosition.y - 1;
             float mouse_x = f.mouthPosition.x;
             float mouse_y = iHeight - f.mouthPosition.y - 1;
-            float dx = 2 * f.bounds.origin.x + f.bounds.size.width - left_eye_x - right_eye_x;
-            float dy = left_eye_y - right_eye_y;
-            float dz = mouse_x - (f.bounds.origin.x + f.bounds.size.width * 0.5f);
-            NSLog(@"%.1f %.1f %.1f", dx, dy, dz);
-            if (dx * dx + dy * dy + dz * dz > (f.bounds.size.height * f.bounds.size.width) / 100)
-                continue;
+            if (self.tracker == NULL) {
+                float dx = 2 * f.bounds.origin.x + f.bounds.size.width - left_eye_x - right_eye_x;
+                float dy = left_eye_y - right_eye_y;
+                float dz = mouse_x - (f.bounds.origin.x + f.bounds.size.width * 0.5f);
+                if (dx * dx + dy * dy + dz * dz > (f.bounds.size.height * f.bounds.size.width) / 100)
+                    continue;
+            }
             far_rects[n].x = f.bounds.origin.x;
             far_rects[n].y = iHeight - f.bounds.origin.y - f.bounds.size.height;
             far_rects[n].width = f.bounds.size.width;
@@ -191,6 +192,7 @@ typedef struct face_t {
         }
         if (n > 0) {
             if (self.tracker != NULL) {
+                face.rect = far_retrack(self.tracker, gray, far_rects, n);
                 NSLog(@"re track at");
                 for (int i = 0; i < n; ++i)
                     NSLog(@"\t[(%.0f,%.0f) %.0fx%.0f]", far_rects[i].x, far_rects[i].y, far_rects[i].width, far_rects[i].height);
@@ -199,7 +201,7 @@ typedef struct face_t {
                 self.tracker = far_init(gray, iWidth, iHeight, face.rect);
                 self.start_face = face;
                 NSLog(@"start track at [(%.0f,%.0f) %.0fx%.0f]", face.rect.x, face.rect.y, face.rect.width, face.rect.height);
-                face.rect = far_retrack(self.tracker, gray, far_rects, n);
+                
             }
         }else {
             if (self.tracker != NULL) {
