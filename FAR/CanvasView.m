@@ -34,10 +34,11 @@
     CGContextSaveGState(context);
     CGContextTranslateCTM(context, face.origin.x + face.size.width * 0.5f, face.origin.y + face.size.height * 0.5f);
     CGContextRotateCTM(context, -rotation / 180.0f * M_PI);
+    //CGContextRotateCTM(context, rotation / 180.0f * M_PI);
     CGContextAddRect(context, CGRectMake(face.size.width * -0.5f, face.size.height * -0.5f, face.size.width, face.size.width));
     CGContextRestoreGState(context);
-    CGContextAddEllipseInRect(context, CGRectMake(leftEye.x - 1 , leftEye.y - 1 , 2 , 2));
-    CGContextAddEllipseInRect(context, CGRectMake(rightEye.x - 1 , rightEye.y - 1 , 2 , 2));
+    //CGContextAddEllipseInRect(context, CGRectMake(leftEye.x - 1 , leftEye.y - 1 , 2 , 2));
+    //CGContextAddEllipseInRect(context, CGRectMake(rightEye.x - 1 , rightEye.y - 1 , 2 , 2));
     //CGContextAddEllipseInRect(context, CGRectMake(mouse.x - 1 , mouse.y - 4 , 2 , 8));
     
     [[UIColor greenColor] set];
