@@ -41,8 +41,6 @@ typedef struct face_t {
 
 @property (nonatomic) float start_roll;
 
-@property (nonatomic) NSMutableArray* clock_queue;
-
 @end
 
 @implementation ViewController
@@ -55,7 +53,6 @@ typedef struct face_t {
     
     self.tracker = NULL;
     self.drop_count = self.last_detect = self.count_detect = 0;
-    self.clock_queue = [[NSMutableArray alloc] init];
 }
 
 - (void)didReceiveMemoryWarning {
@@ -225,15 +222,8 @@ typedef struct face_t {
             float right_eye_y = iHeight - f.rightEyePosition.y - 1;
             float mouse_x = f.mouthPosition.x;
             float mouse_y = iHeight - f.mouthPosition.y - 1;
-            /*
-            if (self.tracker == NULL) {
-                float dx = 2 * f.bounds.origin.x + f.bounds.size.width - left_eye_x - right_eye_x;
-                float dy = left_eye_y - right_eye_y;
-                float dz = mouse_x - (f.bounds.origin.x + f.bounds.size.width * 0.5f);
-                if (dx * dx + dy * dy + dz * dz > (f.bounds.size.height * f.bounds.size.width) / 100)
-                    continue;
-            }
-             */
+            if (self.tracker == NULL && fabs(left_eye_x - right_eye_x) > 10 && fabs(left_eye_y - right_eye_y) > 10)
+                continue;
             far_rects[n].x = f.bounds.origin.x;
             far_rects[n].y = iHeight - f.bounds.origin.y - f.bounds.size.height;
             far_rects[n].width = f.bounds.size.width;
@@ -277,19 +267,12 @@ typedef struct face_t {
             NSLog(@"track nothing");
         --self.last_detect;
     }
-    float fps = 0.0f, error = 0.0f, roll = 0.0f, yaw = 0.0f, pitch = 0.0f;
+    float error = 0.0f, roll = 0.0f, yaw = 0.0f, pitch = 0.0f;
     if (self.tracker != NULL) {
         far_transform(self.tracker, self.start_face.rect, &face.left_eye_x, &face.left_eye_y);
         far_transform(self.tracker, self.start_face.rect, &face.right_eye_x, &face.right_eye_y);
         far_transform(self.tracker, self.start_face.rect, &face.mouse_x, &face.mouse_y);
         far_info(self.tracker, &error, &roll, &yaw, &pitch);
-        /*
-        clock_t c = clock();
-        while ([self.clock_queue count] > 0 && c - [[self.clock_queue objectAtIndex:0] unsignedLongValue] > CLOCKS_PER_SEC)
-            [self.clock_queue removeObjectAtIndex:0];
-        [self.clock_queue addObject:[NSNumber numberWithUnsignedLong:c]];
-        fps = (float)CLOCKS_PER_SEC / (float)(c - [[self.clock_queue objectAtIndex:0] unsignedLongValue]) * (float)[self.clock_queue count];
-        */
     }
 #ifndef __front
     face.rect.y = iHeight - face.rect.width - face.rect.y;
@@ -302,8 +285,7 @@ typedef struct face_t {
     CGPoint pointLeftEye = CGPointMake(face.left_eye_y, face.left_eye_x);
     CGPoint pointRightEye = CGPointMake(face.right_eye_y, face.right_eye_x);
     CGPoint pointMouse = CGPointMake(face.mouse_y, face.mouse_x);
-    //NSString* info = [NSString stringWithFormat:@"fps: %.1f\ndetection: %d\nerror: %.2f\nroll: %.0f\nyaw: %.0f\npitch: %.0f\n", fps, self.count_detect, error, roll, yaw, pitch];
-    NSString* info = [NSString stringWithFormat:@"error: %.2f\nroll: %.0f\n", error, roll];
+    NSString* info = [NSString stringWithFormat:@"detection: %d\nerror: %.2f\nroll: %.0f\nyaw: %.0f\npitch: %.0f\n", self.count_detect, error, roll, yaw, pitch];
     dispatch_async(dispatch_get_main_queue(), ^{
         [self showFace:rectFace rotation:angleRotation leftEye:pointLeftEye rightEye:pointRightEye mouse:pointMouse info:info];
     } ) ;
